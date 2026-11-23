@@ -40,3 +40,60 @@ A hands-on 3-tier Linux infrastructure project built on AWS (`ap-south-1`), isol
 - **Infrastructure & Networking:** EC2 instances (`3/3 checks passed`), `Tier-vpc`, subnets, route tables, IGW, and NAT Gateway.
 - **Security Rules:** Tier-to-tier Security Group inbound configurations.
 - **CLI Verification:** Git Bash terminal sessions showing SSH access, service checks, logs, and `curl` validation.
+
+
+## Step-by-Step Linux Commands (By Tier)
+
+### 1. SSH & Bastion Key Transfer (Local Git Bash)
+```bash
+# Set strict permissions on the private key locally
+chmod 400 "<YOUR.pem>"
+
+# Copy the key to the public Web instance (bastion) to reach private App/DB instances
+scp -i "<YOUR.pem>" "<YOUR.pem>" ec2-user@<WEB-IP>:~/<YOUR.pem>
+
+# Connect to the public Web tier instance
+ssh -i "<YOUR.pem>" ec2-user@<WEB-IP>
+
+# From the Web tier, lock down the copied key and SSH into private tiers
+chmod 400 ~/<YOUR.pem>
+ssh -i ~/<YOUR.pem> ec2-user@<APP-PRIVATE-IP>
+ssh -i ~/<YOUR.pem> ec2-user@<DB-PRIVATE-IP>
+
+
+# Install and start Apache HTTP Server
+sudo yum update -y
+sudo yum install -y httpd
+sudo systemctl enable --now httpd
+sudo systemctl status httpd
+
+# Configure reverse proxy to forward HTTP traffic to App tier (port 5000)
+sudo vi /etc/httpd/conf.d/reverse-proxy.conf
+sudo apachectl configtest
+sudo systemctl restart httpd
+
+
+# Install Python dependencies and start Flask in the background
+pip3 install flask pymysql
+nohup python3 app.py > flask.log 2>&1 &
+
+# Verify process, listening port, and logs
+ps aux | grep python3
+ss -tulpn | grep 5000
+cat flask.log
+
+# Test local backend response
+curl -i http://localhost:5000/data
+
+
+# Install, enable, and secure MariaDB
+sudo yum install -y mariadb105-server
+sudo systemctl enable --now mariadb
+sudo mysql_secure_installation
+
+# Create database/user and test remote DB login from App tier
+mysql -u root -p
+mysql -h <DB-PRIVATE-IP> -u <DB_USER> -p threetier_db
+
+
+
